@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
-// enable console logging etc
-bool isDev = false;
+import 'utils.dart';
 
 void main() {
   runApp(const MyApp());
@@ -34,31 +34,52 @@ class MyHomePage extends StatefulWidget {
 class _MyHomePageState extends State<MyHomePage> {
   List<TimeOfDay> _wakes = [];
 
-  void _setWakeTime() async {
+  @override
+  void initState() {
+    loadStoredWakes();
+    super.initState();
+  }
+
+  Future<void> loadStoredWakes() async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> storedWakes = prefs.getStringList('wakes') ?? [];
+    List<TimeOfDay> parsedWakes = storedWakes.map((w) => strToToD(w)).toList();
+
+    setState(() {
+      _wakes = parsedWakes;
+    });
+  }
+
+  Future<void> setStoredWakes(List<TimeOfDay> wakes) async {
+    final prefs = await SharedPreferences.getInstance();
+    List<String> parsedWakes = wakes.map((w) => strFromToD(context, w)).toList();
+    prefs.setStringList('wakes', parsedWakes);
+  }
+
+  Future<void> _showTimePicker() async {
     TimeOfDay? selectedTime = await showTimePicker(
       initialTime: TimeOfDay.now(),
       context: context,
     );
 
     if (selectedTime != null) {
-      setState(() {
-        _wakes = _finiteAddToList(_wakes, selectedTime);
-      });
+      _setWake(selectedTime);
     }
   }
 
-  void _resetWakes() {
+  void _setWake(TimeOfDay time) {
+    _setWakes(finiteAddToList(_wakes, time));
+  }
+
+  void _setWakes(List<TimeOfDay> wakes) {
+    setStoredWakes(wakes);
     setState(() {
-      _wakes = [];
+      _wakes = wakes;
     });
   }
 
-  List<T> _finiteAddToList<T>(List<T> list, T value, [int limit = 5]) {
-    if (list.length >= limit) {
-      return [...list.sublist(0, 4), value];
-    }
-
-    return [...list, value];
+  void _resetWakes() {
+    _setWakes([]);
   }
 
   void _confirmResetWakes(BuildContext context) async {
@@ -66,6 +87,7 @@ class _MyHomePageState extends State<MyHomePage> {
       child: const Text("Cancel"),
       onPressed: () => Navigator.of(context).pop(),
     );
+
     Widget confirmButton = ElevatedButton(
       onPressed: () {
         _resetWakes();
@@ -90,31 +112,6 @@ class _MyHomePageState extends State<MyHomePage> {
         return alert;
       },
     );
-  }
-
-  String _calcTempMin(BuildContext context) {
-    if (_wakes.isEmpty) return 'Unknown';
-
-    final sum = _wakes.fold(0.0, (previousValue, element) {
-      final current = element.hour + (element.minute / 60);
-      return previousValue + current;
-    });
-
-    double average = sum / _wakes.length;
-    int hours = average.truncate();
-    double minutes = average - hours;
-
-    TimeOfDay averageWakeupTime = TimeOfDay(hour: hours, minute: (minutes * 60).round());
-    TimeOfDay tempMinTime =
-        TimeOfDay(hour: averageWakeupTime.hour - 2, minute: averageWakeupTime.minute);
-
-    if (isDev) {
-      print('fractional sum $sum');
-      print('fractional average $average');
-      print('averageWakeupTime $averageWakeupTime');
-    }
-
-    return tempMinTime.format(context);
   }
 
   @override
@@ -158,19 +155,19 @@ class _MyHomePageState extends State<MyHomePage> {
               if (_wakes.isNotEmpty)
                 Padding(
                   padding: innerPad,
-                  child: _buildTempMin(context),
+                  child: TemperatureMinimum(_wakes),
                 ),
               Padding(
                 padding: innerPad,
                 child: ElevatedButton(
-                  onPressed: _setWakeTime,
+                  onPressed: _showTimePicker,
                   child: const Text('Add latest wake time'),
                 ),
               ),
               if (_wakes.isNotEmpty)
                 Padding(
                   padding: innerPad,
-                  child: _buildWakesDisplay(context),
+                  child: RecentWakes(_wakes, () => _confirmResetWakes(context)),
                 ),
             ],
           ),
@@ -178,8 +175,30 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
     );
   }
+}
 
-  Widget _buildWakesDisplay(BuildContext context) {
+class TemperatureMinimum extends StatelessWidget {
+  final List<TimeOfDay> wakes;
+  const TemperatureMinimum(this.wakes, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Text(
+      strFromToD(context, calcTempMin(wakes)),
+      style: Theme.of(context).textTheme.headline2,
+      textAlign: TextAlign.center,
+    );
+  }
+}
+
+class RecentWakes extends StatelessWidget {
+  final List<TimeOfDay> wakes;
+  final VoidCallback onClear;
+
+  const RecentWakes(this.wakes, this.onClear, {super.key});
+
+  @override
+  Widget build(BuildContext context) {
     return Column(children: [
       Flex(
         direction: Axis.horizontal,
@@ -187,7 +206,7 @@ class _MyHomePageState extends State<MyHomePage> {
         children: [
           const Text('Recent: '),
           Text(
-            _wakes.map((el) => el.format(context)).join(', '),
+            wakes.map((w) => strFromToD(context, w)).join(', '),
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(width: 16),
@@ -195,7 +214,7 @@ class _MyHomePageState extends State<MyHomePage> {
       ),
       const SizedBox(height: 8),
       OutlinedButton(
-        onPressed: () => _confirmResetWakes(context),
+        onPressed: onClear,
         style: OutlinedButton.styleFrom(
           foregroundColor: Colors.red,
           textStyle: Theme.of(context).textTheme.bodySmall,
@@ -203,13 +222,5 @@ class _MyHomePageState extends State<MyHomePage> {
         child: const Text('Clear recent'),
       ),
     ]);
-  }
-
-  Widget _buildTempMin(BuildContext context) {
-    return Text(
-      _calcTempMin(context),
-      style: Theme.of(context).textTheme.headline2,
-      textAlign: TextAlign.center,
-    );
   }
 }
