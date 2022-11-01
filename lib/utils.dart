@@ -1,14 +1,17 @@
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
 
 import "globals.dart";
 
-TimeOfDay strToToD(String time, [is24Hr = false]) {
-  final format = is24Hr ? DateFormat.Hms() : DateFormat.jm();
-  return TimeOfDay.fromDateTime(format.parse(time));
+TimeOfDay strToToD(String time) {
+  return TimeOfDay.fromDateTime(DateTime.parse(time));
 }
 
-String strFromToD(BuildContext context, TimeOfDay time) {
+String strFromToD(TimeOfDay time) {
+  final now = DateTime.now();
+  return DateTime(now.year, now.month, now.day, time.hour, time.minute).toString();
+}
+
+String displayTextFromToD(BuildContext context, TimeOfDay time) {
   return time.format(context);
 }
 

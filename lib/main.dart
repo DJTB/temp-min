@@ -7,6 +7,8 @@ void main() {
   runApp(const MyApp());
 }
 
+EdgeInsets innerPad = const EdgeInsets.all(8.0);
+
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 
@@ -15,9 +17,7 @@ class MyApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'Temperature Minimum',
-      theme: ThemeData(
-        primarySwatch: Colors.lightBlue,
-      ),
+      theme: ThemeData.light(),
       home: const MyHomePage(title: 'Temperature minimum'),
     );
   }
@@ -52,7 +52,7 @@ class _MyHomePageState extends State<MyHomePage> {
 
   Future<void> setStoredWakes(List<TimeOfDay> wakes) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> parsedWakes = wakes.map((w) => strFromToD(context, w)).toList();
+    List<String> parsedWakes = wakes.map((w) => strFromToD(w)).toList();
     prefs.setStringList('wakes', parsedWakes);
   }
 
@@ -78,78 +78,62 @@ class _MyHomePageState extends State<MyHomePage> {
     });
   }
 
+  void _resetWake(int wakeIndex) {
+    var newWakes = _wakes.toList();
+    newWakes.removeAt(wakeIndex);
+    _setWakes(newWakes);
+  }
+
   void _resetWakes() {
     _setWakes([]);
   }
 
-  void _confirmResetWakes(BuildContext context) async {
-    Widget cancelButton = OutlinedButton(
-      child: const Text("Cancel"),
-      onPressed: () => Navigator.of(context).pop(),
-    );
+  void _confirmResetWakes(BuildContext context, [int? wakeIndex]) async {
+    final shouldClearAll = wakeIndex is! int;
+    final confirmText =
+        "Do you want to clear ${shouldClearAll ? 'all recent wake up times' : 'this wake up time'}?";
 
     Widget confirmButton = ElevatedButton(
       onPressed: () {
-        _resetWakes();
+        shouldClearAll ? _resetWakes() : _resetWake(wakeIndex);
         Navigator.of(context).pop();
       },
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
-      child: const Text("Clear"),
+      style: ElevatedButton.styleFrom(backgroundColor: Colors.red[400]),
+      child: const Text("Clear", style: TextStyle(color: Colors.white)),
     );
 
-    AlertDialog alert = AlertDialog(
-      title: const Text("Are you sure?"),
-      content: const Text("Do you want to clear all recent wake up times?"),
-      actions: [
-        cancelButton,
-        confirmButton,
-      ],
+    Widget cancelButton = OutlinedButton(
+      onPressed: () => Navigator.of(context).pop(),
+      child: const Text("Cancel"),
     );
 
     showDialog<bool>(
       context: context,
-      builder: (BuildContext context) {
-        return alert;
-      },
+      builder: (BuildContext context) => AlertDialog(
+        title: const Text("Are you sure?"),
+        content: Text(confirmText),
+        actions: [
+          cancelButton,
+          confirmButton,
+        ],
+      ),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    var innerPad = const EdgeInsets.all(8.0);
-
-    // This method is rerun every time setState is called, for instance as done
-    // by the _incrementCounter method above.
-    //
-    // The Flutter framework has been optimized to make rerunning build methods
-    // fast, so that you can just rebuild anything that needs updating rather
-    // than having to individually change instances of widgets.
     return Scaffold(
       appBar: AppBar(
-        // Here we take the value from the MyHomePage object that was created by
-        // the App.build method, and use it to set our appbar title.
-        title: Text(widget.title),
+        centerTitle: true,
+        title: Text(
+          widget.title,
+          style: const TextStyle(color: Colors.white),
+        ),
       ),
       body: Padding(
         padding: innerPad * 2,
         child: Center(
-          // Center is a layout widget. It takes a single child and positions it
-          // in the middle of the parent.
           child: Column(
-            // Column is also a layout widget. It takes a list of children and
-            // arranges them vertically. By default, it sizes itself to fit its
-            // children horizontally, and tries to be as tall as its parent.
-            //
-            // Invoke "debug painting" (press "p" in the console, choose the
-            // "Toggle Debug Paint" action from the Flutter Inspector in Android
-            // Studio, or the "Toggle Debug Paint" command in Visual Studio Code)
-            // to see the wireframe for each widget.
-            //
-            // Column has various properties to control how it sizes itself and
-            // how it positions its children. Here we use mainAxisAlignment to
-            // center the children vertically; the main axis here is the vertical
-            // axis because Columns are vertical (the cross axis would be
-            // horizontal).
             mainAxisAlignment: MainAxisAlignment.start,
             children: <Widget>[
               if (_wakes.isNotEmpty)
@@ -161,13 +145,20 @@ class _MyHomePageState extends State<MyHomePage> {
                 padding: innerPad,
                 child: ElevatedButton(
                   onPressed: _showTimePicker,
-                  child: const Text('Add latest wake time'),
+                  style: ButtonStyle(foregroundColor: MaterialStateProperty.all(Colors.white)),
+                  child: const Text('Add latest wake-up time'),
                 ),
               ),
               if (_wakes.isNotEmpty)
-                Padding(
-                  padding: innerPad,
-                  child: RecentWakes(_wakes, () => _confirmResetWakes(context)),
+                Expanded(
+                  child: Padding(
+                    padding: innerPad,
+                    child: RecentWakes(
+                      wakes: _wakes,
+                      onResetAll: () => _confirmResetWakes(context),
+                      onResetSingle: (int wakeIndex) => _confirmResetWakes(context, wakeIndex),
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -184,43 +175,63 @@ class TemperatureMinimum extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Text(
-      strFromToD(context, calcTempMin(wakes)),
-      style: Theme.of(context).textTheme.headline2,
+      displayTextFromToD(context, calcTempMin(wakes)),
+      style: Theme.of(context).textTheme.headline2?.copyWith(color: Colors.black87),
       textAlign: TextAlign.center,
     );
   }
 }
 
+typedef OnResetSingle = void Function(int wakeIndex);
+
 class RecentWakes extends StatelessWidget {
   final List<TimeOfDay> wakes;
-  final VoidCallback onClear;
+  final VoidCallback onResetAll;
+  final OnResetSingle onResetSingle;
 
-  const RecentWakes(this.wakes, this.onClear, {super.key});
+  const RecentWakes({
+    required this.wakes,
+    required this.onResetAll,
+    required this.onResetSingle,
+    super.key,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(children: [
-      Flex(
-        direction: Axis.horizontal,
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          const Text('Recent: '),
-          Text(
-            wakes.map((w) => strFromToD(context, w)).join(', '),
-            style: Theme.of(context).textTheme.bodySmall,
+    return ListView(
+      children: [
+        ...wakes.map(
+          (w) => ListTile(
+            dense: true,
+            title: Text(
+              displayTextFromToD(context, w),
+              style: Theme.of(context).textTheme.headline6,
+            ),
+            leading: const Icon(
+              Icons.access_time_filled,
+            ),
+            trailing: IconButton(
+              onPressed: () => onResetSingle(wakes.indexOf(w)),
+              icon: Icon(
+                Icons.clear_rounded,
+                color: Colors.red[400],
+              ),
+            ),
           ),
-          const SizedBox(width: 16),
-        ],
-      ),
-      const SizedBox(height: 8),
-      OutlinedButton(
-        onPressed: onClear,
-        style: OutlinedButton.styleFrom(
-          foregroundColor: Colors.red,
-          textStyle: Theme.of(context).textTheme.bodySmall,
         ),
-        child: const Text('Clear recent'),
-      ),
-    ]);
+        Padding(
+          padding: innerPad * 2,
+          child: OutlinedButton(
+            onPressed: onResetAll,
+            style: OutlinedButton.styleFrom(
+              foregroundColor: Colors.red,
+              side: const BorderSide(color: Colors.red),
+              textStyle: Theme.of(context).textTheme.bodySmall,
+            ),
+            child: const Text('Clear all'),
+          ),
+        )
+      ],
+    );
   }
 }
