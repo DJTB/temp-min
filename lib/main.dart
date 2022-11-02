@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'utils.dart';
@@ -89,20 +90,35 @@ class _MyHomePageState extends State<MyHomePage> {
   }
 
   void _confirmResetWakes(BuildContext context, [int? wakeIndex]) async {
-    final shouldClearAll = wakeIndex is! int;
-    final confirmText =
-        "Do you want to clear ${shouldClearAll ? 'all recent wake up times' : 'this wake up time'}?";
+    final shouldRemoveAll = wakeIndex is! int;
+    final confirmText = shouldRemoveAll
+        ? RichText(
+            text: TextSpan(
+              style: Theme.of(context).textTheme.bodyText1,
+              children: const [
+                TextSpan(text: "Do you want to remove "),
+                TextSpan(
+                    text: 'all',
+                    style: TextStyle(
+                      fontStyle: FontStyle.italic,
+                      fontWeight: FontWeight.bold,
+                    )),
+                TextSpan(text: ' recent wake up times?'),
+              ],
+            ),
+          )
+        : const Text('Do you want to remove this wake up time?');
 
-    Widget confirmButton = ElevatedButton(
+    Widget confirmButton = TextButton(
       onPressed: () {
-        shouldClearAll ? _resetWakes() : _resetWake(wakeIndex);
+        shouldRemoveAll ? _resetWakes() : _resetWake(wakeIndex);
         Navigator.of(context).pop();
       },
-      style: ElevatedButton.styleFrom(backgroundColor: Colors.red[400]),
-      child: const Text("Clear", style: TextStyle(color: Colors.white)),
+      style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
+      child: const Text("Remove"),
     );
 
-    Widget cancelButton = OutlinedButton(
+    Widget cancelButton = TextButton(
       onPressed: () => Navigator.of(context).pop(),
       child: const Text("Cancel"),
     );
@@ -111,7 +127,7 @@ class _MyHomePageState extends State<MyHomePage> {
       context: context,
       builder: (BuildContext context) => AlertDialog(
         title: const Text("Are you sure?"),
-        content: Text(confirmText),
+        content: confirmText,
         actions: [
           cancelButton,
           confirmButton,
@@ -149,17 +165,16 @@ class _MyHomePageState extends State<MyHomePage> {
                   child: const Text('Add latest wake-up time'),
                 ),
               ),
-              if (_wakes.isNotEmpty)
+              if (_wakes.isNotEmpty) ...[
+                const Divider(),
                 Expanded(
-                  child: Padding(
-                    padding: innerPad,
-                    child: RecentWakes(
-                      wakes: _wakes,
-                      onResetAll: () => _confirmResetWakes(context),
-                      onResetSingle: (int wakeIndex) => _confirmResetWakes(context, wakeIndex),
-                    ),
+                  child: RecentWakes(
+                    wakes: _wakes,
+                    onResetAll: () => _confirmResetWakes(context),
+                    onResetSingle: (int wakeIndex) => _confirmResetWakes(context, wakeIndex),
                   ),
-                ),
+                )
+              ],
             ],
           ),
         ),
@@ -200,9 +215,26 @@ class RecentWakes extends StatelessWidget {
   Widget build(BuildContext context) {
     return ListView(
       children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Recent wakes',
+                style: Theme.of(context).textTheme.headline6,
+              ),
+            ),
+            IconButton(
+              tooltip: 'Remove all',
+              onPressed: onResetAll,
+              icon: Icon(Icons.clear_all_rounded, color: Colors.red[400]),
+            )
+          ],
+        ),
         ...wakes.map(
           (w) => ListTile(
             dense: true,
+            contentPadding: EdgeInsets.zero, // we have content padding externally already
+            minLeadingWidth: 0, // defaults to 40 which is a huge gap between icon -> text
             title: Text(
               displayTextFromToD(context, w),
               style: Theme.of(context).textTheme.headline6,
@@ -219,18 +251,6 @@ class RecentWakes extends StatelessWidget {
             ),
           ),
         ),
-        Padding(
-          padding: innerPad * 2,
-          child: OutlinedButton(
-            onPressed: onResetAll,
-            style: OutlinedButton.styleFrom(
-              foregroundColor: Colors.red,
-              side: const BorderSide(color: Colors.red),
-              textStyle: Theme.of(context).textTheme.bodySmall,
-            ),
-            child: const Text('Clear all'),
-          ),
-        )
       ],
     );
   }
