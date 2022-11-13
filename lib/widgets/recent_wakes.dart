@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../globals.dart';
 import '../utils.dart';
 
 typedef OnResetSingleType = void Function(int wakeIndex);
 
 class RecentWakes extends StatelessWidget {
-  final List<TimeOfDay> wakes;
+  final Wakes wakes;
   final VoidCallback onResetAll;
   final OnResetSingleType onResetSingle;
 

@@ -1,123 +1,37 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 
+import '../cubits/wakes_cubit.dart';
 import '../globals.dart';
-import '../utils.dart';
 import '../widgets/recent_wakes.dart';
 import '../widgets/temperature_minimum.dart';
 
 const innerPad = EdgeInsets.all(Globals.padding);
 
-class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key, required this.title});
-  final String title;
+class HomeScreen extends StatelessWidget {
+  const HomeScreen({super.key});
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (_) => WakesCubit([]),
+      child: const HomeScreenView(),
+    );
+  }
 }
 
-class _HomeScreenState extends State<HomeScreen> {
-  List<TimeOfDay> _wakes = [];
+class HomeScreenView extends StatelessWidget {
+  const HomeScreenView({super.key});
 
-  @override
-  void initState() {
-    loadStoredWakes();
-    super.initState();
-  }
-
-  Future<void> loadStoredWakes() async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> storedWakes = prefs.getStringList('wakes') ?? [];
-    List<TimeOfDay> parsedWakes = storedWakes.map(datetimeStrToTimeOfDay).toList();
-
-    setState(() {
-      _wakes = parsedWakes;
-    });
-  }
-
-  Future<void> setStoredWakes(List<TimeOfDay> wakes) async {
-    final prefs = await SharedPreferences.getInstance();
-    List<String> parsedWakes = wakes.map(datetimeStrFromTimeOfDay).toList();
-    prefs.setStringList('wakes', parsedWakes);
-  }
-
-  Future<void> _showTimePicker() async {
+  Future<void> _showTimePicker(BuildContext context, void Function(TimeOfDay) onAdd) async {
     TimeOfDay? selectedTime = await showTimePicker(
       initialTime: TimeOfDay.now(),
       context: context,
     );
 
     if (selectedTime != null) {
-      _setWake(selectedTime);
+      onAdd(selectedTime);
     }
-  }
-
-  void _setWake(TimeOfDay time) {
-    _setWakes(finiteAddToList(_wakes, time));
-  }
-
-  void _setWakes(List<TimeOfDay> wakes) {
-    setStoredWakes(wakes);
-    setState(() {
-      _wakes = wakes;
-    });
-  }
-
-  void _resetWake(int wakeIndex) {
-    var newWakes = _wakes.toList();
-    newWakes.removeAt(wakeIndex);
-    _setWakes(newWakes);
-  }
-
-  void _resetWakes() {
-    _setWakes([]);
-  }
-
-  void _confirmResetWakes(BuildContext context, [int? wakeIndex]) async {
-    final shouldRemoveAll = wakeIndex is! int;
-    final confirmText = shouldRemoveAll
-        ? RichText(
-            text: TextSpan(
-              style: Theme.of(context).textTheme.bodyText1,
-              children: const [
-                TextSpan(text: "Do you want to remove "),
-                TextSpan(
-                    text: 'all',
-                    style: TextStyle(
-                      fontStyle: FontStyle.italic,
-                      fontWeight: FontWeight.bold,
-                    )),
-                TextSpan(text: ' recent wake up times?'),
-              ],
-            ),
-          )
-        : const Text('Do you want to remove this wake up time?');
-
-    Widget confirmButton = TextButton(
-      onPressed: () {
-        shouldRemoveAll ? _resetWakes() : _resetWake(wakeIndex);
-        Navigator.of(context).pop();
-      },
-      style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
-      child: const Text("Remove"),
-    );
-
-    Widget cancelButton = TextButton(
-      onPressed: () => Navigator.of(context).pop(),
-      child: const Text("Cancel"),
-    );
-
-    showDialog<bool>(
-      context: context,
-      builder: (BuildContext context) => AlertDialog(
-        title: const Text("Are you sure?"),
-        content: confirmText,
-        actions: [
-          cancelButton,
-          confirmButton,
-        ],
-      ),
-    );
   }
 
   @override
@@ -125,44 +39,99 @@ class _HomeScreenState extends State<HomeScreen> {
     return Scaffold(
       appBar: AppBar(
         centerTitle: true,
-        title: Text(
-          widget.title,
-          style: const TextStyle(color: Colors.white),
+        title: const Text(
+          Globals.appTitle,
+          style: TextStyle(color: Colors.white),
         ),
       ),
       body: Padding(
         padding: innerPad * 2,
         child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.start,
-            children: <Widget>[
-              if (_wakes.isNotEmpty)
+          child: BlocBuilder<WakesCubit, Wakes>(builder: (context, state) {
+            var hasWakes = state.isNotEmpty;
+
+            return Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: <Widget>[
+                if (hasWakes)
+                  Padding(
+                    padding: innerPad,
+                    child: TemperatureMinimum(state),
+                  ),
                 Padding(
                   padding: innerPad,
-                  child: TemperatureMinimum(_wakes),
-                ),
-              Padding(
-                padding: innerPad,
-                child: ElevatedButton(
-                  onPressed: _showTimePicker,
-                  style: ButtonStyle(foregroundColor: MaterialStateProperty.all(Colors.white)),
-                  child: const Text('Add latest wake-up time'),
-                ),
-              ),
-              if (_wakes.isNotEmpty) ...[
-                const Divider(),
-                Expanded(
-                  child: RecentWakes(
-                    wakes: _wakes,
-                    onResetAll: () => _confirmResetWakes(context),
-                    onResetSingle: (int wakeIndex) => _confirmResetWakes(context, wakeIndex),
+                  child: ElevatedButton(
+                    onPressed: () => _showTimePicker(context, context.read<WakesCubit>().addWake),
+                    style: ButtonStyle(foregroundColor: MaterialStateProperty.all(Colors.white)),
+                    child: const Text('Add latest wake-up time'),
                   ),
-                )
+                ),
+                if (hasWakes) ...[
+                  const Divider(),
+                  Expanded(
+                      child: RecentWakes(
+                    wakes: state,
+                    onResetAll: () => confirmResetWakes(context),
+                    onResetSingle: (int wakeIndex) => confirmResetWakes(context, wakeIndex),
+                  ))
+                ],
               ],
-            ],
-          ),
+            );
+          }),
         ),
       ),
     );
   }
+}
+
+void confirmResetWakes(BuildContext context, [int? wakeIndex]) async {
+  final shouldRemoveAll = wakeIndex is! int;
+
+  void handleConfirm() {
+    shouldRemoveAll
+        ? context.read<WakesCubit>().resetAll()
+        : context.read<WakesCubit>().resetWake(wakeIndex);
+    Navigator.of(context).pop();
+  }
+
+  final confirmText = shouldRemoveAll
+      ? RichText(
+          text: TextSpan(
+            style: Theme.of(context).textTheme.bodyText1,
+            children: const [
+              TextSpan(text: "Do you want to remove "),
+              TextSpan(
+                  text: 'all',
+                  style: TextStyle(
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.bold,
+                  )),
+              TextSpan(text: ' recent wake up times?'),
+            ],
+          ),
+        )
+      : const Text('Do you want to remove this wake up time?');
+
+  Widget confirmButton = TextButton(
+    onPressed: handleConfirm,
+    style: TextButton.styleFrom(foregroundColor: Colors.red[400]),
+    child: const Text("Remove"),
+  );
+
+  Widget cancelButton = TextButton(
+    onPressed: () => Navigator.of(context).pop(),
+    child: const Text("Cancel"),
+  );
+
+  showDialog<bool>(
+    context: context,
+    builder: (BuildContext context) => AlertDialog(
+      title: const Text("Are you sure?"),
+      content: confirmText,
+      actions: [
+        cancelButton,
+        confirmButton,
+      ],
+    ),
+  );
 }

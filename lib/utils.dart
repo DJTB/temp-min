@@ -1,4 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'globals.dart';
 
 /// simple string datetime for storage
 /// uses today's date to compose a valid date, but we don't care about the date
@@ -13,7 +16,7 @@ TimeOfDay datetimeStrToTimeOfDay(String time) => TimeOfDay.fromDateTime(DateTime
 /// returns TimeOfDay formatted to text based on user preference (12 or 24h)
 String displayTextFromToD(BuildContext context, TimeOfDay time) => time.format(context);
 
-TimeOfDay calcTempMin(List<TimeOfDay> values) {
+TimeOfDay calcTempMin(Wakes values) {
   if (values.isEmpty) return const TimeOfDay(hour: 24, minute: 00);
 
   final sum = values.fold(0.0, (previousValue, value) {
@@ -40,4 +43,16 @@ List<T> finiteAddToList<T>(List<T> list, T value, {int limit = 5}) {
   }
 
   return [...list, value];
+}
+
+Future<Wakes> loadStoredWakes() async {
+  final prefs = await SharedPreferences.getInstance();
+  List<String> storedWakes = prefs.getStringList(Globals.wakesStorageKey) ?? [];
+  return storedWakes.map(datetimeStrToTimeOfDay).toList();
+}
+
+Future<void> setStoredWakes(Wakes wakes) async {
+  final prefs = await SharedPreferences.getInstance();
+  List<String> parsedWakes = wakes.map(datetimeStrFromTimeOfDay).toList();
+  prefs.setStringList(Globals.wakesStorageKey, parsedWakes);
 }

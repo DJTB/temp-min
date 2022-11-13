@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../globals.dart';
 import '../utils.dart';
 
 class TemperatureMinimum extends StatelessWidget {
-  final List<TimeOfDay> wakes;
+  final Wakes wakes;
   const TemperatureMinimum(this.wakes, {super.key});
 
   @override

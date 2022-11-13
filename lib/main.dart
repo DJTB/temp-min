@@ -15,7 +15,7 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: Globals.appTitle,
       theme: ThemeData.light(),
-      home: const HomeScreen(title: Globals.appTitle),
+      home: const HomeScreen(),
     );
   }
 }
