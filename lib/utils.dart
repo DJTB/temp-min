@@ -36,9 +36,11 @@ TimeOfDay calcTempMin(List<TimeOfDay> values) {
   return tempMinTime;
 }
 
-List<T> finiteAddToList<T>(List<T> list, T value, [int limit = 5]) {
+/// Treats list like a stack
+List<T> finiteAddToList<T>(List<T> list, T value, {int limit = 5}) {
+  // remove initial, shorten list to limit, add to end
   if (list.length >= limit) {
-    return [...list.sublist(0, 4), value];
+    return [...list.sublist(1, limit), value];
   }
 
   return [...list, value];
