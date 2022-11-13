@@ -28,7 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> loadStoredWakes() async {
     final prefs = await SharedPreferences.getInstance();
     List<String> storedWakes = prefs.getStringList('wakes') ?? [];
-    List<TimeOfDay> parsedWakes = parseToTimeOfDay(storedWakes);
+    List<TimeOfDay> parsedWakes = storedWakes.map(datetimeStrToTimeOfDay).toList();
 
     setState(() {
       _wakes = parsedWakes;
@@ -37,7 +37,7 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> setStoredWakes(List<TimeOfDay> wakes) async {
     final prefs = await SharedPreferences.getInstance();
-    List<String> parsedWakes = parseFromTimeOfDay(wakes);
+    List<String> parsedWakes = wakes.map(datetimeStrFromTimeOfDay).toList();
     prefs.setStringList('wakes', parsedWakes);
   }
 

@@ -13,13 +13,9 @@ TimeOfDay datetimeStrToTimeOfDay(String time) => TimeOfDay.fromDateTime(DateTime
 /// returns TimeOfDay formatted to text based on user preference (12 or 24h)
 String displayTextFromToD(BuildContext context, TimeOfDay time) => time.format(context);
 
-List<String> parseFromTimeOfDay(List<TimeOfDay> wakes) =>
-    wakes.map((w) => datetimeStrFromTimeOfDay(w)).toList();
-
-List<TimeOfDay> parseToTimeOfDay(List<String> wakes) =>
-    wakes.map((w) => datetimeStrToTimeOfDay(w)).toList();
-
 TimeOfDay calcTempMin(List<TimeOfDay> values) {
+  if (values.isEmpty) return const TimeOfDay(hour: 24, minute: 00);
+
   final sum = values.fold(0.0, (previousValue, value) {
     final current = value.hour + (value.minute / 60);
     return previousValue + current;
